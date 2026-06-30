@@ -8,23 +8,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   Layout,
   Plus,
   Trash2,
   Save,
-  Eye,
   Settings,
   Heading,
   Layers,
   Image as ImageIcon,
-  MousePointerClick,
   Sparkles,
   Stethoscope,
-  Heart,
-  Droplet,
-  ShieldAlert,
-  Calendar,
+  Library,
+  Search,
+  Check,
+  MousePointerClick,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,23 +33,33 @@ function BuilderContent() {
   const searchParams = useSearchParams();
   const pageIdParam = searchParams ? searchParams.get("id") : null;
 
-  const { pages, updatePage, loading } = useLocalData();
+  const { pages, updatePage, mediaItems, loading } = useLocalData();
   const [selectedPageId, setSelectedPageId] = useState<string>("");
   const [blocks, setBlocks] = useState<PageBlock[]>([]);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
+
+  // Left Sidebar tab: "sections" or "media"
+  const [leftActiveTab, setLeftActiveTab] = useState<"sections" | "media">("sections");
+  const [mediaSearch, setMediaSearch] = useState("");
+
+  // Right Inspector Dialog triggers for Media Picker
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
+  const [modalTargetField, setModalTargetField] = useState<"imageUrl" | "bgImage" | null>(null);
 
   // Inspector States
   const [inspectTitle, setInspectTitle] = useState("");
   const [inspectContent, setInspectContent] = useState("");
   const [inspectSubtitle, setInspectSubtitle] = useState("");
   const [inspectCta, setInspectCta] = useState("");
+  const [inspectImageUrl, setInspectImageUrl] = useState("");
+  const [inspectBgImage, setInspectBgImage] = useState("");
 
   const availableBlocks = [
     { type: "hero", title: "MMI Hero Banner", desc: "Hospital title, tagline & action buttons", icon: Sparkles },
     { type: "features", title: "Quick Links Grid", desc: "6-item grid (Appt, Reports, Emergency)", icon: Layers },
     { type: "cta", title: "Doctor Search Teaser", desc: "Teaser banner promoting Doctor Finder", icon: Stethoscope },
     { type: "text", title: "Rich Description Info", desc: "Subsidized welfare & donation text block", icon: Heading },
-    { type: "image", title: "Facility Image Banner", desc: "Full-width visual placeholder banner", icon: ImageIcon },
+    { type: "image", title: "Facility Image Banner", desc: "Full-width visual image block", icon: ImageIcon },
   ];
 
   // Set default page ID if param is present, otherwise fallback to first page
@@ -88,12 +97,16 @@ function BuilderContent() {
         setInspectContent(block.content || "");
         setInspectSubtitle(block.subtitle || "");
         setInspectCta(block.ctaText || "");
+        setInspectImageUrl(block.imageUrl || "");
+        setInspectBgImage(block.bgImage || "");
       }
     } else {
       setInspectTitle("");
       setInspectContent("");
       setInspectSubtitle("");
       setInspectCta("");
+      setInspectImageUrl("");
+      setInspectBgImage("");
     }
   }, [selectedBlockId, blocks]);
 
@@ -102,7 +115,7 @@ function BuilderContent() {
     router.push(`/builder?id=${id}`);
   };
 
-  const addBlock = (type: string, title: string) => {
+  const addBlock = (type: string, title: string, extraData?: Partial<PageBlock>) => {
     const newBlockId = type + "-" + Date.now();
     const newBlock: PageBlock = {
       id: newBlockId,
@@ -115,6 +128,8 @@ function BuilderContent() {
           ? "Our Subsidized Welfare Portals"
           : type === "cta"
           ? "Find the Right Doctor"
+          : type === "image"
+          ? (extraData?.title || "Facility Image Banner")
           : "Professional medical care with a human touch.",
       subtitle:
         type === "hero"
@@ -123,6 +138,7 @@ function BuilderContent() {
           ? "Search our medical directories and book consult timings online."
           : "",
       ctaText: type === "hero" || type === "cta" ? "Book Appointment" : undefined,
+      ...extraData,
     };
 
     const updatedBlocks = [...blocks, newBlock];
@@ -164,12 +180,38 @@ function BuilderContent() {
           content: inspectContent,
           subtitle: inspectSubtitle,
           ctaText: inspectCta || undefined,
+          imageUrl: inspectImageUrl || undefined,
+          bgImage: inspectBgImage || undefined,
         };
       }
       return b;
     });
     setBlocks(updatedBlocks);
     toast.success("Block properties updated locally. Save page to persist.");
+  };
+
+  // Apply image to the currently selected block (if it's an image block or hero block)
+  const applyImageToSelected = (url: string, name: string) => {
+    if (!selectedBlockId) {
+      toast.error("Please select a block on the canvas first.");
+      return;
+    }
+    const currentBlock = blocks.find((b) => b.id === selectedBlockId);
+    if (!currentBlock) return;
+
+    if (currentBlock.type === "image") {
+      setInspectImageUrl(url);
+      const updated = blocks.map((b) => (b.id === selectedBlockId ? { ...b, imageUrl: url } : b));
+      setBlocks(updated);
+      toast.success(`Applied "${name}" as block image preview. Save page to persist.`);
+    } else if (currentBlock.type === "hero") {
+      setInspectBgImage(url);
+      const updated = blocks.map((b) => (b.id === selectedBlockId ? { ...b, bgImage: url } : b));
+      setBlocks(updated);
+      toast.success(`Applied "${name}" as hero background banner. Save page to persist.`);
+    } else {
+      toast.warning(`Cannot apply image. Selected block type "${currentBlock.type}" does not use images.`);
+    }
   };
 
   if (loading || !selectedPageId) {
@@ -182,6 +224,11 @@ function BuilderContent() {
 
   const selectedBlock = blocks.find((b) => b.id === selectedBlockId);
   const activePage = pages.find((p) => p.id === selectedPageId);
+
+  // Filter media items in builder sidebar
+  const filteredMedia = mediaItems.filter((item) =>
+    item.name.toLowerCase().includes(mediaSearch.toLowerCase())
+  );
 
   return (
     <div className="h-[calc(100vh-8rem)] flex flex-col -m-6 md:-m-8 animate-in fade-in duration-500">
@@ -220,36 +267,142 @@ function BuilderContent() {
 
       {/* Main Workspace Layout */}
       <div className="flex flex-1 min-h-0">
-        {/* Left Sidebar: Components Drawer */}
-        <aside className="w-72 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 flex flex-col flex-shrink-0 overflow-y-auto p-4 space-y-4">
-          <div>
-            <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-3">
-              Add MMI Sections
-            </h3>
-            <div className="space-y-2">
-              {availableBlocks.map((item) => (
-                <button
-                  key={item.type}
-                  onClick={() => addBlock(item.type, item.title)}
-                  className="w-full flex items-center justify-between p-3 rounded-xl border border-zinc-200 hover:border-[#043164] hover:bg-[#043164]/5 dark:border-zinc-800 dark:hover:border-[#c5a742] dark:hover:bg-[#c5a742]/10 text-left transition-all group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded bg-zinc-50 border border-zinc-100 text-zinc-550 dark:bg-zinc-900 dark:border-zinc-850 group-hover:text-[#043164] dark:group-hover:text-[#c5a742]">
-                      <item.icon className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-zinc-905 dark:text-zinc-50">
-                        {item.title}
-                      </h4>
-                      <p className="text-[10px] text-zinc-400 leading-normal line-clamp-1">
-                        {item.desc}
-                      </p>
-                    </div>
+        {/* Left Sidebar: Components Drawer & Media Library */}
+        <aside className="w-72 border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950 flex flex-col flex-shrink-0 overflow-hidden">
+          {/* Tab Selection */}
+          <div className="flex border-b border-zinc-200 dark:border-zinc-800 flex-shrink-0 bg-zinc-50/50 dark:bg-zinc-900/20">
+            <button
+              onClick={() => setLeftActiveTab("sections")}
+              className={`flex-1 py-3 text-center text-xs font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 ${
+                leftActiveTab === "sections"
+                  ? "border-[#043164] text-[#043164] dark:border-[#c5a742] dark:text-[#c5a742] bg-white dark:bg-zinc-950"
+                  : "border-transparent text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-200"
+              }`}
+            >
+              <Layout className="h-3.5 w-3.5" />
+              Sections
+            </button>
+            <button
+              onClick={() => setLeftActiveTab("media")}
+              className={`flex-1 py-3 text-center text-xs font-bold border-b-2 transition-all flex items-center justify-center gap-1.5 ${
+                leftActiveTab === "media"
+                  ? "border-[#043164] text-[#043164] dark:border-[#c5a742] dark:text-[#c5a742] bg-white dark:bg-zinc-950"
+                  : "border-transparent text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-200"
+              }`}
+            >
+              <Library className="h-3.5 w-3.5" />
+              Media Library
+            </button>
+          </div>
+
+          {/* Scrollable Tab Content */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {leftActiveTab === "sections" ? (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-3">
+                    Add MMI Sections
+                  </h3>
+                  <div className="space-y-2">
+                    {availableBlocks.map((item) => (
+                      <button
+                        key={item.type}
+                        onClick={() => addBlock(item.type, item.title)}
+                        className="w-full flex items-center justify-between p-3 rounded-xl border border-zinc-200 hover:border-[#043164] hover:bg-[#043164]/5 dark:border-zinc-800 dark:hover:border-[#c5a742] dark:hover:bg-[#c5a742]/10 text-left transition-all group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded bg-zinc-50 border border-zinc-100 text-zinc-550 dark:bg-zinc-900 dark:border-zinc-850 group-hover:text-[#043164] dark:group-hover:text-[#c5a742]">
+                            <item.icon className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-zinc-900 dark:text-zinc-50">
+                              {item.title}
+                            </h4>
+                            <p className="text-[10px] text-zinc-400 leading-normal line-clamp-1">
+                              {item.desc}
+                            </p>
+                          </div>
+                        </div>
+                        <Plus className="h-3.5 w-3.5 text-zinc-400 group-hover:text-[#043164] dark:group-hover:text-[#c5a742]" />
+                      </button>
+                    ))}
                   </div>
-                  <Plus className="h-3.5 w-3.5 text-zinc-400 group-hover:text-emerald-655" />
-                </button>
-              ))}
-            </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                    Use Media Photos
+                  </h3>
+                  <p className="text-[10px] text-zinc-450 dark:text-zinc-500 leading-normal">
+                    Click `+` to insert as a block, or click the pointer to apply the image to your selected block.
+                  </p>
+                </div>
+
+                {/* Local search in sidebar */}
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-zinc-400" />
+                  <Input
+                    placeholder="Filter photos..."
+                    value={mediaSearch}
+                    onChange={(e) => setMediaSearch(e.target.value)}
+                    className="pl-8 text-xs h-8 bg-zinc-50/50 dark:bg-zinc-900/30"
+                  />
+                </div>
+
+                {/* Sidebar Image Grid */}
+                {filteredMedia.length === 0 ? (
+                  <div className="text-center py-10 border border-dashed border-zinc-200 dark:border-zinc-800 rounded-xl">
+                    <ImageIcon className="h-8 w-8 text-zinc-300 mx-auto mb-2" />
+                    <p className="text-[10px] text-zinc-400">No images match filter.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {filteredMedia.map((item) => (
+                      <div
+                        key={item.id}
+                        className="group relative aspect-video rounded-lg overflow-hidden border border-zinc-205 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+                      >
+                        <img src={item.url} alt={item.name} className="h-full w-full object-cover" />
+                        
+                        {/* Hover Overlay with mini actions */}
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => addBlock("image", "Facility Image Banner", { imageUrl: item.url, title: item.name, content: "Custom uploaded clinical image banner" })}
+                            className="p-1 rounded bg-white hover:bg-zinc-100 text-[#043164] transition-colors"
+                            title="Insert as new Image Block"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                          
+                          {selectedBlock && (selectedBlock.type === "image" || selectedBlock.type === "hero") && (
+                            <button
+                              onClick={() => applyImageToSelected(item.url, item.name)}
+                              className="p-1 rounded bg-[#043164] hover:bg-[#1A3268] text-white transition-colors"
+                              title="Apply to Selected Block"
+                            >
+                              <MousePointerClick className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        <div className="absolute bottom-0 inset-x-0 bg-black/40 px-1 py-0.5 text-[8px] text-white truncate text-center">
+                          {item.name}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="pt-2">
+                  <Button asChild size="sm" variant="outline" className="w-full text-xs h-8 border-zinc-250 dark:border-zinc-800">
+                    <Link href="/media">
+                      Go to Media Library
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </aside>
 
@@ -289,19 +442,30 @@ function BuilderContent() {
 
                   {/* Rendering MMI Themed Mock Canvas Sections */}
                   {block.type === "hero" && (
-                    <div className="p-10 text-center space-y-4 bg-gradient-to-br from-[#043164]/5 to-white">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#043164] dark:text-[#c5a742] bg-[#043164]/10 dark:bg-[#c5a742]/10 px-3 py-1 rounded-full">
+                    <div 
+                      className="p-10 text-center space-y-4 relative overflow-hidden bg-cover bg-center transition-all duration-300"
+                      style={block.bgImage ? { backgroundImage: `linear-gradient(rgba(4, 49, 100, 0.85), rgba(4, 49, 100, 0.95)), url(${block.bgImage})` } : {}}
+                    >
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full relative z-10 ${
+                        block.bgImage 
+                          ? "text-[#c5a742] bg-[#c5a742]/10" 
+                          : "text-[#043164] dark:text-[#c5a742] bg-[#043164]/10 dark:bg-[#c5a742]/10"
+                      }`}>
                         Hospital Hero Banner
                       </span>
-                      <h1 className="text-3xl font-black text-zinc-950 dark:text-zinc-50 leading-tight">
+                      <h1 className={`text-3xl font-black leading-tight relative z-10 ${block.bgImage ? "text-white" : "text-zinc-950 dark:text-zinc-50"}`}>
                         {block.content}
                       </h1>
-                      <p className="text-zinc-500 text-sm max-w-lg mx-auto leading-relaxed">
+                      <p className={`text-sm max-w-lg mx-auto leading-relaxed relative z-10 ${block.bgImage ? "text-zinc-250" : "text-zinc-500 dark:text-zinc-400"}`}>
                         {block.subtitle || "Advanced healthcare tagline banner template."}
                       </p>
-                      <div className="pt-2 flex gap-3 justify-center">
-                        <Button className="bg-[#043164] hover:bg-[#1A3268] text-white shadow">{block.ctaText || "Book Appointment"}</Button>
-                        <Button variant="outline" className="border-zinc-200 dark:border-zinc-800">View Reports</Button>
+                      <div className="pt-2 flex gap-3 justify-center relative z-10">
+                        <Button className={block.bgImage ? "bg-[#c5a742] hover:bg-[#b09230] text-[#043164]" : "bg-[#043164] hover:bg-[#1A3268] text-white shadow"}>
+                          {block.ctaText || "Book Appointment"}
+                        </Button>
+                        <Button variant="outline" className={block.bgImage ? "border-zinc-350 text-white bg-white/5 hover:bg-white/10" : "border-zinc-200 dark:border-zinc-800"}>
+                          View Reports
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -355,9 +519,13 @@ function BuilderContent() {
 
                   {block.type === "image" && (
                     <div className="aspect-[21/9] bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center overflow-hidden relative">
+                      {block.imageUrl ? (
+                        <img src={block.imageUrl} alt={block.title} className="absolute inset-0 h-full w-full object-cover transition-all duration-300" />
+                      ) : (
+                        <ImageIcon className="h-10 w-10 text-zinc-400 relative z-10 animate-pulse" />
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                      <ImageIcon className="h-10 w-10 text-zinc-400 relative z-10 animate-pulse" />
-                      <div className="absolute bottom-4 left-6 text-white text-xs space-y-1">
+                      <div className="absolute bottom-4 left-6 text-white text-xs space-y-1 relative z-10">
                         <strong className="block text-sm">{block.title}</strong>
                         <span className="text-zinc-200 text-[10px]">{block.content}</span>
                       </div>
@@ -407,6 +575,62 @@ function BuilderContent() {
                 />
               </div>
 
+              {/* Show Image Input for Image Blocks */}
+              {selectedBlock.type === "image" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="image-url" className="text-xs">Image File URL</Label>
+                  <div className="flex gap-2">
+                    <input
+                      id="image-url"
+                      type="text"
+                      value={inspectImageUrl}
+                      onChange={(e) => setInspectImageUrl(e.target.value)}
+                      className="w-full text-xs p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-lg focus:border-[#043164] focus:outline-none"
+                      placeholder="/assets/uploads/image.png"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setModalTargetField("imageUrl");
+                        setIsMediaModalOpen(true);
+                      }}
+                      className="text-xs h-9 border-zinc-200 dark:border-zinc-800 whitespace-nowrap px-3"
+                    >
+                      Browse
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Show BgImage and other controls for Hero Blocks */}
+              {selectedBlock.type === "hero" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="bg-image-url" className="text-xs">Background Banner Image</Label>
+                  <div className="flex gap-2">
+                    <input
+                      id="bg-image-url"
+                      type="text"
+                      value={inspectBgImage}
+                      onChange={(e) => setInspectBgImage(e.target.value)}
+                      className="w-full text-xs p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-850 rounded-lg focus:border-[#043164] focus:outline-none"
+                      placeholder="/assets/uploads/hero-bg.png"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setModalTargetField("bgImage");
+                        setIsMediaModalOpen(true);
+                      }}
+                      className="text-xs h-9 border-zinc-200 dark:border-zinc-800 whitespace-nowrap px-3"
+                    >
+                      Browse
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               {(selectedBlock.type === "hero" || selectedBlock.type === "cta") && (
                 <>
                   <div className="space-y-1.5">
@@ -435,7 +659,7 @@ function BuilderContent() {
 
               <Button
                 onClick={handleInspectorSave}
-                className="w-full bg-zinc-900 hover:bg-zinc-800 text-white text-xs h-9 mt-4"
+                className="w-full bg-[#043164] hover:bg-[#1A3268] text-white text-xs h-9 mt-4"
               >
                 Apply Changes
               </Button>
@@ -447,6 +671,53 @@ function BuilderContent() {
           )}
         </aside>
       </div>
+
+      {/* Media Select Dialog Overlay */}
+      {isMediaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col mx-4">
+            <div className="flex items-center justify-between border-b border-zinc-150 dark:border-zinc-850 pb-3 flex-shrink-0">
+              <div>
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">Select Image</h3>
+                <p className="text-[10px] text-zinc-450 dark:text-zinc-500 mt-0.5">Choose an image from your clinic media assets below.</p>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setIsMediaModalOpen(false)}>Close</Button>
+            </div>
+            
+            <div className="overflow-y-auto flex-1 p-1 min-h-[250px]">
+              {mediaItems.length === 0 ? (
+                <div className="text-center py-16 text-zinc-400 text-xs border border-dashed rounded-xl border-zinc-200 dark:border-zinc-800">
+                  No images in Media Library. Upload some under <Link href="/media" className="underline text-[#043164] dark:text-[#c5a742]">Media Library</Link>.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {mediaItems.map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => {
+                        if (modalTargetField === "imageUrl") {
+                          setInspectImageUrl(item.url);
+                        } else if (modalTargetField === "bgImage") {
+                          setInspectBgImage(item.url);
+                        }
+                        setIsMediaModalOpen(false);
+                        toast.success(`Selected image: ${item.name}. Click 'Apply Changes' in the inspector panel to sync.`);
+                      }}
+                      className="group relative aspect-video rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 cursor-pointer hover:border-[#043164] dark:hover:border-[#c5a742] transition-all bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center shadow-sm"
+                    >
+                      <img src={item.url} alt={item.name} className="h-full w-full object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold p-2 text-center">
+                        <Check className="h-5 w-5 mb-1 text-emerald-450 text-emerald-400" />
+                        <span className="truncate w-full">{item.name}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

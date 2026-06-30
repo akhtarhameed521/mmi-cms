@@ -46,6 +46,15 @@ export interface Appointment {
   phone: string;
 }
 
+export interface MediaItem {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  size: number;
+  createdAt: string;
+}
+
 const DEFAULT_DOCTORS: Doctor[] = [
   {
     slug: "dr-faisal-memon",
@@ -309,10 +318,62 @@ const DEFAULT_APPOINTMENTS: Appointment[] = [
   },
 ];
 
+export const DEFAULT_MEDIA_ITEMS: MediaItem[] = [
+  {
+    id: "media-1",
+    name: "mmi-lobby.jpg",
+    url: "https://images.unsplash.com/photo-1586773860418-d37222d8fce2?q=80&w=800&auto=format&fit=crop",
+    type: "image/jpeg",
+    size: 245000,
+    createdAt: "2026-06-25",
+  },
+  {
+    id: "media-2",
+    name: "cardiology-unit.jpg",
+    url: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=80&w=800&auto=format&fit=crop",
+    type: "image/jpeg",
+    size: 198000,
+    createdAt: "2026-06-26",
+  },
+  {
+    id: "media-3",
+    name: "clinical-lab.jpg",
+    url: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?q=80&w=800&auto=format&fit=crop",
+    type: "image/jpeg",
+    size: 312000,
+    createdAt: "2026-06-27",
+  },
+  {
+    id: "media-4",
+    name: "mri-scanner.jpg",
+    url: "https://images.unsplash.com/photo-1516549655169-df83a0774514?q=80&w=800&auto=format&fit=crop",
+    type: "image/jpeg",
+    size: 156000,
+    createdAt: "2026-06-28",
+  },
+  {
+    id: "media-5",
+    name: "surgery-theater.jpg",
+    url: "https://images.unsplash.com/photo-1551076805-e1869033e561?q=80&w=800&auto=format&fit=crop",
+    type: "image/jpeg",
+    size: 420000,
+    createdAt: "2026-06-29",
+  },
+  {
+    id: "media-6",
+    name: "consultant-doctor.jpg",
+    url: "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=800&auto=format&fit=crop",
+    type: "image/jpeg",
+    size: 185000,
+    createdAt: "2026-06-30",
+  },
+];
+
 export function useLocalData() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [pages, setPages] = useState<Page[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Initialize
@@ -321,6 +382,7 @@ export function useLocalData() {
       const storedDoctors = localStorage.getItem("mmi_doctors");
       const storedPages = localStorage.getItem("mmi_pages");
       const storedAppointments = localStorage.getItem("mmi_appointments");
+      const storedMedia = localStorage.getItem("mmi_media");
 
       if (storedDoctors) {
         setDoctors(JSON.parse(storedDoctors));
@@ -343,6 +405,13 @@ export function useLocalData() {
         setAppointments(DEFAULT_APPOINTMENTS);
       }
 
+      if (storedMedia) {
+        setMediaItems(JSON.parse(storedMedia));
+      } else {
+        localStorage.setItem("mmi_media", JSON.stringify(DEFAULT_MEDIA_ITEMS));
+        setMediaItems(DEFAULT_MEDIA_ITEMS);
+      }
+
       setLoading(false);
     }
   }, []);
@@ -360,6 +429,11 @@ export function useLocalData() {
   const saveAppointments = (newApts: Appointment[]) => {
     setAppointments(newApts);
     localStorage.setItem("mmi_appointments", JSON.stringify(newApts));
+  };
+
+  const saveMediaItems = (newMedia: MediaItem[]) => {
+    setMediaItems(newMedia);
+    localStorage.setItem("mmi_media", JSON.stringify(newMedia));
   };
 
   // Doctors Actions
@@ -410,10 +484,22 @@ export function useLocalData() {
     saveAppointments(updated);
   };
 
+  // Media Actions
+  const addMediaItem = (item: MediaItem) => {
+    const updated = [item, ...mediaItems];
+    saveMediaItems(updated);
+  };
+
+  const deleteMediaItem = (id: string) => {
+    const updated = mediaItems.filter((m) => m.id !== id);
+    saveMediaItems(updated);
+  };
+
   return {
     doctors,
     pages,
     appointments,
+    mediaItems,
     loading,
     addDoctor,
     updateDoctor,
@@ -424,5 +510,7 @@ export function useLocalData() {
     addAppointment,
     updateAppointmentStatus,
     deleteAppointment,
+    addMediaItem,
+    deleteMediaItem,
   };
 }

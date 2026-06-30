@@ -14,6 +14,7 @@ import {
   Stethoscope,
   Calendar,
   HeartPulse,
+  Image,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -30,6 +31,7 @@ export function Sidebar({ className, onClose }: SidebarProps) {
     { name: "Appointments Queue", href: "/appointments", icon: Calendar },
     { name: "Pages Manager", href: "/pages", icon: FileText },
     { name: "Page Builder", href: "/builder", icon: Hammer },
+    { name: "Media Library", href: "/media", icon: Image },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
 
