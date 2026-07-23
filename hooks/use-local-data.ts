@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 
 export interface Doctor {
   slug: string;
@@ -178,7 +179,7 @@ const DEFAULT_PAGES: Page[] = [
   {
     id: "1",
     title: "MMI Hospital Home Page",
-    slug: "/",
+    slug: "home",
     description: "Welcome to Memon Medical Institute Hospital - Advanced healthcare with a human touch.",
     status: "Published",
     updatedAt: "2026-06-27",
@@ -203,63 +204,6 @@ const DEFAULT_PAGES: Page[] = [
         type: "cta",
         title: "Doctors Search Teaser",
         content: "Find the Right Doctor. Search by name, specialty, or condition.",
-      },
-    ],
-  },
-  {
-    id: "2",
-    title: "About MMI - Trustees",
-    slug: "/about/trustees",
-    description: "Board of Trustees of Memon Medical Institute.",
-    status: "Published",
-    updatedAt: "2026-06-25",
-    blocks: [
-      {
-        id: "trustees-hero",
-        type: "hero",
-        title: "Hero Section",
-        content: "Our Board of Trustees",
-        subtitle: "The visionary leaders driving Memon Medical Institute towards medical excellence.",
-      },
-      {
-        id: "trustees-text",
-        type: "text",
-        title: "Introduction",
-        content: "MMI Hospital is governed by a dedicated board of trustees committed to providing state-of-the-art medical services at highly subsidized rates to all patients, regardless of cast or creed.",
-      },
-    ],
-  },
-  {
-    id: "3",
-    title: "Antenatal Care Program",
-    slug: "/facilities/antenatal-care-program",
-    description: "Comprehensive antenatal care services at Memon Medical Institute Hospital.",
-    status: "Published",
-    updatedAt: "2026-06-22",
-    blocks: [
-      {
-        id: "antenatal-hero",
-        type: "hero",
-        title: "Antenatal Program Header",
-        content: "Antenatal Care Program",
-        subtitle: "Safe Motherhood, Healthy Babies. Specialized clinical pathways for pregnancy and childbirth.",
-      },
-    ],
-  },
-  {
-    id: "4",
-    title: "Future Projects",
-    slug: "/about/future-projects",
-    description: "Expansion plans and future medical blocks at Memon Medical Institute.",
-    status: "Draft",
-    updatedAt: "2026-06-28",
-    blocks: [
-      {
-        id: "future-hero",
-        type: "hero",
-        title: "Future Projects Header",
-        content: "Building the Future of Healthcare",
-        subtitle: "Expanding facilities, introducing advanced departments, and bringing new hope.",
       },
     ],
   },
@@ -376,11 +320,72 @@ export function useLocalData() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Fetch Pages from Backend
+  const fetchPagesFromBackend = async () => {
+    try {
+      const token = localStorage.getItem("mmi_token");
+      if (!token) {
+        // Fallback to local storage if no token is available (e.g. before login)
+        const storedPages = localStorage.getItem("mmi_pages");
+        if (storedPages) {
+          setPages(JSON.parse(storedPages));
+        } else {
+          localStorage.setItem("mmi_pages", JSON.stringify(DEFAULT_PAGES));
+          setPages(DEFAULT_PAGES);
+        }
+        return;
+      }
+
+      const res = await fetch("http://localhost:5000/api/cms/pages", {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        const mapped = data.data.map((p: any) => {
+          let parsedBlocks = [];
+          try {
+            parsedBlocks = JSON.parse(p.content);
+          } catch {
+            parsedBlocks = [
+              {
+                id: "hero-" + p.id,
+                type: "hero",
+                title: "Hero Banner Section",
+                content: p.title,
+                subtitle: p.metaDescription || "Start editing this section in the Visual Page Builder.",
+                ctaText: "Get Started",
+              }
+            ];
+          }
+
+          return {
+            id: p.id.toString(),
+            title: p.title,
+            slug: p.slug,
+            description: p.metaDescription || "",
+            status: p.status === "Active" ? "Published" : "Draft",
+            updatedAt: p.updatedAt ? p.updatedAt.split("T")[0] : (p.createdAt ? p.createdAt.split("T")[0] : new Date().toISOString().split("T")[0]),
+            blocks: parsedBlocks
+          };
+        });
+        setPages(mapped);
+      } else {
+        const storedPages = localStorage.getItem("mmi_pages");
+        if (storedPages) setPages(JSON.parse(storedPages));
+      }
+    } catch (err) {
+      console.error("Error fetching pages from backend:", err);
+      const storedPages = localStorage.getItem("mmi_pages");
+      if (storedPages) setPages(JSON.parse(storedPages));
+    }
+  };
+
   // Initialize
   useEffect(() => {
     if (typeof window !== "undefined") {
       const storedDoctors = localStorage.getItem("mmi_doctors");
-      const storedPages = localStorage.getItem("mmi_pages");
       const storedAppointments = localStorage.getItem("mmi_appointments");
       const storedMedia = localStorage.getItem("mmi_media");
 
@@ -389,13 +394,6 @@ export function useLocalData() {
       } else {
         localStorage.setItem("mmi_doctors", JSON.stringify(DEFAULT_DOCTORS));
         setDoctors(DEFAULT_DOCTORS);
-      }
-
-      if (storedPages) {
-        setPages(JSON.parse(storedPages));
-      } else {
-        localStorage.setItem("mmi_pages", JSON.stringify(DEFAULT_PAGES));
-        setPages(DEFAULT_PAGES);
       }
 
       if (storedAppointments) {
@@ -412,7 +410,10 @@ export function useLocalData() {
         setMediaItems(DEFAULT_MEDIA_ITEMS);
       }
 
-      setLoading(false);
+      // Fetch pages from API
+      fetchPagesFromBackend().finally(() => {
+        setLoading(false);
+      });
     }
   }, []);
 
@@ -453,19 +454,111 @@ export function useLocalData() {
   };
 
   // Pages Actions
-  const addPage = (page: Page) => {
-    const updated = [...pages, page];
-    savePages(updated);
+  const addPage = async (page: Page) => {
+    const token = localStorage.getItem("mmi_token");
+    if (!token) {
+      const updated = [...pages, page];
+      savePages(updated);
+      return;
+    }
+
+    try {
+      const res = await fetch("http://localhost:5000/api/cms/pages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: page.title,
+          slug: page.slug.trim().toLowerCase().replace(/^\//, ""), // Clean slug
+          content: JSON.stringify(page.blocks || []),
+          metaTitle: page.title,
+          metaDescription: page.description || ""
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || "Failed to create page on backend");
+      }
+      await fetchPagesFromBackend();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Failed to create page on backend");
+      throw error;
+    }
   };
 
-  const updatePage = (id: string, updatedPage: Page) => {
-    const updated = pages.map((p) => (p.id === id ? updatedPage : p));
-    savePages(updated);
+  const updatePage = async (id: string, updatedPage: Page) => {
+    const token = localStorage.getItem("mmi_token");
+    if (!token) {
+      const updated = pages.map((p) => (p.id === id ? updatedPage : p));
+      savePages(updated);
+      return;
+    }
+
+    try {
+      const numericId = parseInt(id, 10);
+      if (isNaN(numericId)) {
+        throw new Error("Invalid page ID");
+      }
+
+      const res = await fetch(`http://localhost:5000/api/cms/pages/${numericId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          title: updatedPage.title,
+          slug: updatedPage.slug.trim().toLowerCase().replace(/^\//, ""), // Clean slug
+          content: JSON.stringify(updatedPage.blocks || []),
+          metaTitle: updatedPage.title,
+          metaDescription: updatedPage.description || ""
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || "Failed to update page on backend");
+      }
+      await fetchPagesFromBackend();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Failed to update page on backend");
+      throw error;
+    }
   };
 
-  const deletePage = (id: string) => {
-    const updated = pages.filter((p) => p.id !== id);
-    savePages(updated);
+  const deletePage = async (id: string) => {
+    const token = localStorage.getItem("mmi_token");
+    if (!token) {
+      const updated = pages.filter((p) => p.id !== id);
+      savePages(updated);
+      return;
+    }
+
+    try {
+      const numericId = parseInt(id, 10);
+      if (isNaN(numericId)) {
+        throw new Error("Invalid page ID");
+      }
+
+      const res = await fetch(`http://localhost:5000/api/cms/pages/${numericId}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.message || "Failed to delete page on backend");
+      }
+      await fetchPagesFromBackend();
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error.message || "Failed to delete page on backend");
+      throw error;
+    }
   };
 
   // Appointments Actions
@@ -512,5 +605,6 @@ export function useLocalData() {
     deleteAppointment,
     addMediaItem,
     deleteMediaItem,
+    fetchPagesFromBackend
   };
 }

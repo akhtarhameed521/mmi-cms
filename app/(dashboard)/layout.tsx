@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 
@@ -10,6 +10,23 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    const token = localStorage.getItem("mmi_token");
+    if (!token) {
+      window.location.href = "/login";
+    }
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-zinc-50 dark:bg-zinc-900">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#043164] border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-zinc-50 dark:bg-zinc-900">
@@ -26,9 +43,8 @@ export default function DashboardLayout({
 
       {/* Sidebar for Mobile */}
       <Sidebar
-        className={`fixed inset-y-0 left-0 z-50 w-64 md:hidden transition-transform duration-300 ease-in-out ${
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 md:hidden transition-transform duration-300 ease-in-out ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
         onClose={() => setIsSidebarOpen(false)}
       />
 

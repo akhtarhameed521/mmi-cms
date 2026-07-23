@@ -40,16 +40,18 @@ export default function EditPage() {
     }
   }, [loading, pages, id]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !slug) {
       toast.error("Title and Slug path are required.");
       return;
     }
 
-    let cleanedSlug = slug.trim().toLowerCase();
-    if (!cleanedSlug.startsWith("/")) {
-      cleanedSlug = "/" + cleanedSlug;
+    const cleanedSlug = slug.trim().toLowerCase();
+    const slugRegex = /^[a-z0-9-]+$/;
+    if (!slugRegex.test(cleanedSlug)) {
+      toast.error("Slug must contain only lowercase letters, numbers, and hyphens (no slashes, spaces, or leading/trailing slashes).");
+      return;
     }
 
     const updatedPage: Page = {
@@ -62,9 +64,13 @@ export default function EditPage() {
       blocks,
     };
 
-    updatePage(id, updatedPage);
-    toast.success(`Page properties for "${title}" updated successfully!`);
-    router.push("/pages");
+    try {
+      await updatePage(id, updatedPage);
+      toast.success(`Page properties for "${title}" updated successfully!`);
+      router.push("/pages");
+    } catch (err) {
+      // Error already handled
+    }
   };
 
   const currentPageExists = pages.some((p) => p.id === id);

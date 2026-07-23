@@ -15,6 +15,7 @@ import {
   Calendar,
   HeartPulse,
   Image,
+  Layers,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -31,6 +32,7 @@ export function Sidebar({ className, onClose }: SidebarProps) {
     { name: "Appointments Queue", href: "/appointments", icon: Calendar },
     { name: "Pages Manager", href: "/pages", icon: FileText },
     { name: "Page Builder", href: "/builder", icon: Hammer },
+    { name: "Navigation Menu", href: "/navigation", icon: Layers },
     { name: "Media Library", href: "/media", icon: Image },
     { name: "Settings", href: "/settings", icon: Settings },
   ];
