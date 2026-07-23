@@ -1,17 +1,52 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
 
 export default function LoginPage() {
-  const handleSubmit = (e: React.FormEvent) => {
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Logic for auth will go here
+    if (!phone || !password) {
+      toast.error("Please fill in all fields.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await fetch("http://localhost:5000/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ phone, password }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.data?.token) {
+        localStorage.setItem("mmi_token", data.data.token);
+        localStorage.setItem("mmi_user", JSON.stringify(data.data.user));
+        toast.success("Login successful! Redirecting...");
+        // Force complete page refresh to reload auth status
+        window.location.href = "/";
+      } else {
+        toast.error(data.message || "Invalid credentials");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      toast.error("Could not connect to the auth server.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -34,11 +69,13 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-zinc-300">Email Address</Label>
+              <Label htmlFor="phone" className="text-zinc-300">Phone Number</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="name@example.com"
+                id="phone"
+                type="text"
+                placeholder="e.g. 03001234567"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 className="bg-zinc-900 border-zinc-800 text-zinc-100 placeholder-zinc-500 focus-visible:ring-indigo-500 focus-visible:ring-offset-zinc-950"
                 required
               />
@@ -58,6 +95,8 @@ export default function LoginPage() {
                 id="password"
                 type="password"
                 placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="bg-zinc-900 border-zinc-800 text-zinc-100 placeholder-zinc-500 focus-visible:ring-indigo-500 focus-visible:ring-offset-zinc-950"
                 required
               />
@@ -80,9 +119,10 @@ export default function LoginPage() {
           <CardFooter className="flex flex-col gap-4">
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-indigo-500/20"
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-medium shadow-lg shadow-indigo-500/20 disabled:opacity-50"
             >
-              Sign In
+              {isLoading ? "Signing In..." : "Sign In"}
             </Button>
             <div className="text-center text-xs text-zinc-500">
               Don&apos;t have an account?{" "}

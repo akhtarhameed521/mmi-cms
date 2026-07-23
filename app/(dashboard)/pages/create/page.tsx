@@ -21,18 +21,18 @@ export default function CreatePageRoute() {
   const [slug, setSlug] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"Draft" | "Published">("Draft");
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !slug) {
       toast.error("Title and Slug/Route Path are required.");
       return;
     }
 
-    // Clean slug format: lower letters, numbers, hyphens, slashes
-    let cleanedSlug = slug.trim().toLowerCase();
-    if (!cleanedSlug.startsWith("/")) {
-      cleanedSlug = "/" + cleanedSlug;
+    const cleanedSlug = slug.trim().toLowerCase();
+    const slugRegex = /^[a-z0-9-]+$/;
+    if (!slugRegex.test(cleanedSlug)) {
+      toast.error("Slug must contain only lowercase letters, numbers, and hyphens (no slashes, spaces, or leading/trailing slashes).");
+      return;
     }
 
     const newPage: Page = {
@@ -54,11 +54,14 @@ export default function CreatePageRoute() {
       ],
     };
 
-    addPage(newPage);
-    toast.success(`Page "${title}" created successfully!`);
-    router.push("/pages");
+    try {
+      await addPage(newPage);
+      toast.success(`Page "${title}" created successfully!`);
+      router.push("/pages");
+    } catch (err) {
+      // toast is already fired inside addPage
+    }
   };
-
   return (
     <div className="space-y-6 max-w-xl mx-auto animate-in fade-in duration-500">
       <div className="flex items-center gap-3">
